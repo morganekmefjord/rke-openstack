@@ -131,8 +131,10 @@ def run_in_container(commands, image):
 
 def apply_tf_modules(target, image):
     if target == 'infra' or target == 'k8s':
+        terraform_apply_sg(get_tf_modules('sg'), image)
         terraform_apply(get_tf_modules(target), image)
     elif target == 'all':
+        terraform_apply_sg(get_tf_modules('sg'), image)
         terraform_apply(get_tf_modules('infra'), image)
         generate_vars_file()
         run_ansible('setup', image)
@@ -140,15 +142,18 @@ def apply_tf_modules(target, image):
 
 
 def get_tf_modules(target):
-    infra_modules = '-target=module.network -target=module.secgroup\
+    infra_modules = '-target=module.network\
                     -target=module.master -target=module.service -target=module.edge\
                     -target=module.inventory -target=module.keypair'
     k8s_modules = '-target=module.rke'
+    sg_modules = '-target=module.secgroup'
 
     if target == 'infra':
         return infra_modules
     elif target == 'k8s':
         return k8s_modules
+    elif target == 'sg':
+        return sg_modules
     elif target == 'all':
         return ''
 
@@ -156,6 +161,11 @@ def get_tf_modules(target):
 def terraform_apply(modules, image):
     run_in_container(['terraform init -plugin-dir=/terraform_plugins',
                       'terraform apply -auto-approve {}'.format(modules)], image)
+
+
+def terraform_apply_sg(modules, image):
+    run_in_container(['terraform init -plugin-dir=/terraform_plugins',
+                      'terraform apply -auto-approve -parallelism=1 {}'.format(modules)], image)
 
 
 def run_ansible(playbook, image):
